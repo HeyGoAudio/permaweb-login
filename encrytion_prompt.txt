@@ -1,0 +1,27 @@
+Please implement a secure client-side JSON encryption and decryption utility for my web application. 
+
+**Technical Constraints:**
+1. You MUST use the native browser `window.crypto.subtle` API. Do not use any external dependencies or libraries like CryptoJS.
+2. The implementation should be encapsulated in a clean, reusable JavaScript class or module (e.g., `CryptoService`).
+3. The database where this data will be stored is public and tamper-proof.
+
+**Encryption Specifications:**
+- **Algorithm:** AES-GCM (Advanced Encryption Standard in Galois/Counter Mode).
+- **Key Length:** 256-bit.
+- **Key Derivation (KDF):** Use PBKDF2 to derive the AES key from a user-provided password string.
+- **Salt:** Generate a random 16-byte salt using `crypto.getRandomValues()` for the PBKDF2 function. Use at least 250,000 iterations and the SHA-256 hash algorithm.
+- **IV:** Generate a random 12-byte Initialization Vector (IV) for the AES-GCM encryption step.
+
+**Data Format & Output:**
+The encryption method must take a raw JSON object and a password string as inputs, and return a JSON object formatted exactly like this:
+
+{
+  "salt": "<base64_encoded_salt>",
+  "iv": "<base64_encoded_iv>",
+  "ciphertext": "<base64_encoded_encrypted_json_data>"
+}
+
+The decryption method must take that exact JSON envelope and the user's password, derive the exact same key using the provided salt, decrypt the ciphertext using the provided IV, and return the original parsed JSON object.
+
+**Deliverables:**
+Please provide the complete JavaScript code for this utility, along with a short, commented example showing how to encrypt a dummy JSON object, log the resulting envelope, and then decrypt it back to the original object.

@@ -1,0 +1,31 @@
+{
+  "name": "permaweb-login",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@permaweb/aoconnect": "^0.0.98",
+    "@permaweb/libs": "^0.0.96",
+    "arbundles": "^0.11.2",
+    "arweave": "^2.1.0",
+    "buffer": "^6.0.3",
+    "hash-wasm": "^4.12.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
+    "@vitejs/plugin-react": "^6.0.3",
+    "oxlint": "^1.71.0",
+    "vite": "^8.1.1",
+    "vite-plugin-node-polyfills": "^0.28.0"
+  }
+}
