@@ -2,14 +2,14 @@
 
 > **Version:** 0.2  
 > **Status:** Implemented & Verified  
-> **Repository:** `Permissionles-Secure`  
+> **Repository:** `Permaweb-Login`  
 > **Network:** Arweave Permaweb  
 
 ---
 
 ## 1. Executive Summary & Design Philosophy
 
-This specification details the cryptographic architecture, storage format, and authentication workflows of **Permissionles-Secure**—a fully client-side, non-custodial authentication system designed for the Arweave permaweb.
+This specification details the cryptographic architecture, storage format, and authentication workflows of **Permaweb-Login**—a fully client-side, non-custodial authentication system designed for the Arweave permaweb.
 
 ### The Architectural Dilemma
 In traditional Web2 architectures, user authentication relies on centralized databases (e.g., PostgreSQL, Firebase, AWS Cognito). The server stores password hashes (bcrypt, argon2) and serves as the gatekeeper. Users can easily reset passwords because data rows are mutable.

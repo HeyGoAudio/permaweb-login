@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getWalletBalance, downloadKeyfile } from '../utils/account';
+import { resolveArweaveUri } from '../utils/profile';
 
 export default function UserPanel({
   walletAddress,
   walletKey,
+  currentAccount,
+  onNavigate,
   onLogout,
   onBalanceChange,
   isOpen,
@@ -20,13 +23,13 @@ export default function UserPanel({
     }
   };
 
-  const closePanel = () => {
+  const closePanel = useCallback(() => {
     if (setIsOpen) {
       setIsOpen(false);
     } else {
       setInternalOpen(false);
     }
-  };
+  }, [setIsOpen]);
 
   const [balance, setBalance] = useState({ formatted: '0.0000', ar: '0', winston: '0' });
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
@@ -111,19 +114,30 @@ export default function UserPanel({
 
   const abbreviated = `${walletAddress.slice(0, 5)}...${walletAddress.slice(-4)}`;
 
+  const effectiveAccount = currentAccount || {};
+  const hasProfile = !!(effectiveAccount.profile || effectiveAccount.handle);
+
+  const profileAvatar = hasProfile
+    ? resolveArweaveUri(effectiveAccount.profile?.avatarURL || effectiveAccount.profile?.avatar)
+    : null;
+
+  const profileHandle = effectiveAccount.profile?.handleName
+    ? `@${effectiveAccount.profile.handleName}`
+    : abbreviated;
+
   return (
     <>
       {/* Backdrop overlay when expanded */}
       {isExpanded && (
-        <div 
-          className="user-panel-backdrop" 
+        <div
+          className="user-panel-backdrop"
           onClick={closePanel}
           aria-hidden="true"
         />
       )}
 
       <div className="user-panel-wrapper" ref={panelRef}>
-        {/* Default Trigger Button: user icon and abbreviated address */}
+        {/* Default Trigger Button: user avatar/icon and handle */}
         <button
           type="button"
           className={`user-panel ${isExpanded ? 'is-open' : ''}`}
@@ -132,17 +146,26 @@ export default function UserPanel({
           aria-haspopup="dialog"
           title={isExpanded ? "Collapse account details" : "Expand account details"}
         >
-          <i className="icon-user" style={{ fontSize: '1.15rem' }}></i>
-          <span className="user-panel-address">{abbreviated}</span>
-          <i 
-            className={`icon-arrow-down2 user-panel-caret ${isExpanded ? 'open' : ''}`} 
+          {profileAvatar ? (
+            <img
+              src={profileAvatar}
+              alt="User"
+              style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }}
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+          ) : (
+            <i className="icon-user" style={{ fontSize: '1.15rem' }}></i>
+          )}
+          <span className="user-panel-address">{profileHandle}</span>
+          <i
+            className={`icon-arrow-down2 user-panel-caret ${isExpanded ? 'open' : ''}`}
             style={{ fontSize: '0.7rem' }}
           ></i>
         </button>
 
         {/* Expandable Modal */}
         {isExpanded && (
-          <div 
+          <div
             className="user-panel-modal"
             role="dialog"
             aria-modal="true"
@@ -151,8 +174,8 @@ export default function UserPanel({
             {/* Modal Header */}
             <div className="user-panel-modal-header">
               <div className="user-panel-title-wrap">
-                <i 
-                  className="icon-check-circle" 
+                <i
+                  className="icon-check-circle"
                   style={{ fontSize: '1.35rem', color: '#10b981', display: 'inline-block' }}
                 ></i>
                 <h3 id="user-panel-title" style={{ margin: 0, fontSize: '1.15rem' }}>
@@ -247,10 +270,21 @@ export default function UserPanel({
 
             {/* Action Buttons */}
             <div className="flex flex-col gap-3 mt-5">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  closePanel();
+                  if (onNavigate) onNavigate('profile');
+                }}
+              >
+                <i className="icon-user"></i> View Profile
+              </button>
+
               {walletKey && (
                 <button
                   type="button"
-                  className="btn-primary"
+                  className="btn-secondary"
                   onClick={() => downloadKeyfile(walletKey, walletAddress)}
                   title="Download unencrypted Arweave JWK keyfile"
                 >
