@@ -12,6 +12,7 @@ import {
   cropAndCompress,
   formatBytes,
 } from '../utils/imageCompression';
+import ToastNotification from './ToastNotification';
 import './ImageCropper.css';
 
 const clampZoom = (z) => Math.min(Math.max(z, MIN_ZOOM), MAX_ZOOM);
@@ -49,6 +50,12 @@ export default function ImageCropper({ file, preset = 'avatar', onConfirm, onCan
   const imgW = source?.image.naturalWidth || 1;
   const imgH = source?.image.naturalHeight || 1;
   const frameHeight = frameWidth / aspect;
+
+  const [showWarningToast, setShowWarningToast] = useState(file?.size > MAX_MEDIA_BYTES);
+
+  useEffect(() => {
+    setShowWarningToast(file?.size > MAX_MEDIA_BYTES);
+  }, [file]);
 
   // Latest values for native event listeners (wheel) and pointer handlers.
   const latest = useRef({ imgW, imgH, frameWidth, view });
@@ -271,6 +278,20 @@ export default function ImageCropper({ file, preset = 'avatar', onConfirm, onCan
       aria-labelledby="cropper-title"
       onCancel={handleCancelEvent}
     >
+      {showWarningToast && (
+        <ToastNotification
+          type="warning"
+          duration={5000}
+          dim={true}
+          onClose={() => setShowWarningToast(false)}
+          message={
+            <span>
+              The original is <strong>{formatBytes(file.size)}</strong>. <strong>Upload Only</strong> skips compression and exceeds the free {MAX_MEDIA_BYTES / 1024} KB limit, requiring a funded wallet to sign a paid transaction.
+            </span>
+          }
+        />
+      )}
+
       <div className="cropper-header">
         <h3 id="cropper-title" className="cropper-title">
           <i className="icon-image"></i> Adjust {label}
@@ -359,14 +380,10 @@ export default function ImageCropper({ file, preset = 'avatar', onConfirm, onCan
           >
             +
           </button>
-          <button
-            type="button"
-            className="cropper-reset"
-            onClick={handleReset}
-            disabled={!source || isProcessing}
-          >
-            Reset
-          </button>
+
+
+
+
         </div>
 
         <div className="cropper-meta">
@@ -382,13 +399,6 @@ export default function ImageCropper({ file, preset = 'avatar', onConfirm, onCan
         </div>
 
         {processError && <div className="cropper-error">{processError}</div>}
-
-        {originalExceedsLimit && (
-          <div className="cropper-warning">
-            The original is {formatBytes(file.size)}. <strong>Upload Only</strong> skips compression and exceeds the
-            free {MAX_MEDIA_BYTES / 1024} KB limit, so it may require a funded wallet.
-          </div>
-        )}
       </div>
 
       <div className="cropper-footer">
@@ -400,9 +410,31 @@ export default function ImageCropper({ file, preset = 'avatar', onConfirm, onCan
           className="btn-secondary"
           onClick={handleUploadOriginal}
           disabled={!file || isProcessing}
-          title="Upload the original image without cropping or compression"
+          title={
+            originalExceedsLimit
+              ? `Upload original (${formatBytes(file.size)}) - requires funded wallet`
+              : 'Upload the original image without cropping or compression'
+          }
         >
           <i className="icon-cloud-upload"></i> Upload Only
+          {originalExceedsLimit && (
+            <span
+              style={{
+                marginLeft: '0.4rem',
+                color: '#f59e0b',
+                display: 'inline-flex',
+                alignItems: 'center',
+                cursor: 'pointer',
+              }}
+              title="Click to view warning notification"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowWarningToast(true);
+              }}
+            >
+              <i className="icon-triangle-exclamation" style={{ fontSize: '0.85rem' }}></i>
+            </span>
+          )}
         </button>
         <button
           type="button"

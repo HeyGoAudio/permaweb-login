@@ -6,6 +6,7 @@ import RotateCredentials from './components/RotateCredentials'
 import ProfileManager from './components/ProfileManager'
 import UserPanel from './components/UserPanel'
 import { fetchProfile } from './utils/profile'
+import { ToastProvider } from './context/ToastContext'
 
 export default function App() {
   const [currentView, setCurrentView] = useState('landing')
@@ -133,20 +134,22 @@ export default function App() {
   }
 
   return (
-    <div className="app-container">
-      {walletAddress && (
-        <UserPanel
-          walletAddress={walletAddress}
-          walletKey={walletKey}
-          currentAccount={currentAccount}
-          onNavigate={(view) => navigateToView(view)}
-          onLogout={handleLogout}
-          onBalanceChange={setWalletBalance}
-          isOpen={isUserPanelOpen}
-          setIsOpen={setIsUserPanelOpen}
-        />
-      )}
-      {renderView()}
-    </div>
+    <ToastProvider>
+      <div className="app-container">
+        {walletAddress && (
+          <UserPanel
+            walletAddress={walletAddress}
+            walletKey={walletKey}
+            currentAccount={currentAccount}
+            onNavigate={(view) => navigateToView(view)}
+            onLogout={handleLogout}
+            onBalanceChange={setWalletBalance}
+            isOpen={isUserPanelOpen}
+            setIsOpen={setIsUserPanelOpen}
+          />
+        )}
+        {renderView()}
+      </div>
+    </ToastProvider>
   )
 }

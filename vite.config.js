@@ -24,10 +24,10 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      'ardb/lib/models/transaction': path.resolve(__dirname, './ardb/src/models/transaction.ts'),
-      'ardb/lib/models/block': path.resolve(__dirname, './ardb/src/models/block.ts'),
-      'ardb': path.resolve(__dirname, './ardb/src/ardb.ts'),
-      'arweave-account': path.resolve(__dirname, './arweave-account/src/index.ts'),
+      'ardb/lib/models/transaction': path.resolve(__dirname, './vendor/ardb/src/models/transaction.ts'),
+      'ardb/lib/models/block': path.resolve(__dirname, './vendor/ardb/src/models/block.ts'),
+      'ardb': path.resolve(__dirname, './vendor/ardb/src/ardb.ts'),
+      'arweave-account': path.resolve(__dirname, './vendor/arweave-account/src/index.ts'),
       'blockweave': path.resolve(__dirname, './src/utils/blockweave-stub.js'),
     }
   },

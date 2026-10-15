@@ -68,7 +68,7 @@ export async function fetchProfile(address) {
  * @param {string} address - Public wallet address
  * @returns {Promise<{ id: string, account: object }>}
  */
-export async function publishProfile(profile, walletKey, address) {
+export async function publishProfile(profile, walletKey, address, { onStatus = null } = {}) {
   if (!profile || !profile.handleName) {
     throw new Error('A handle name is required to publish an arweave-account profile.');
   }
@@ -77,8 +77,10 @@ export async function publishProfile(profile, walletKey, address) {
 
   // Connect identity
   if (walletKey) {
+    onStatus?.('Preparing profile update...');
     await account.connect(walletKey);
   } else if (typeof window !== 'undefined' && window.arweaveWallet) {
+    onStatus?.('Connecting to browser wallet...');
     await account.connect('use_wallet');
   } else {
     throw new Error('No active wallet or keyfile found to sign profile publication.');
@@ -111,15 +113,30 @@ export async function publishProfile(profile, walletKey, address) {
 
   console.log('Publishing profile payload to Arweave:', formattedProfile);
 
-  const result = await account.updateProfile(formattedProfile, [
-    { name: 'App-Name', value: 'Permissionles-Secure' },
-    { name: 'App-Version', value: '1.0' },
-  ]);
+  if (!walletKey) {
+    onStatus?.('Awaiting signature in Wander...');
+  } else {
+    onStatus?.('Publishing profile payload...');
+  }
+
+  let result;
+  try {
+    result = await account.updateProfile(formattedProfile, [
+      { name: 'App-Name', value: 'Permissionles-Secure' },
+      { name: 'App-Version', value: '1.0' },
+    ]);
+  } catch (err) {
+    const msg = String(err?.message || err || '').toLowerCase();
+    if (msg.includes('user') || msg.includes('cancel') || msg.includes('reject') || msg.includes('denied')) {
+      throw new Error('Transaction was cancelled in your browser wallet.');
+    }
+    throw err;
+  }
 
   const txId = result?.id || result?.txId;
   console.log('✅ Profile published successfully! Tx ID:', txId);
 
-  // Return the newly hydrated profile
+  onStatus?.('Hydrating profile cache...');
   const updatedAccount = await account.get(address);
 
   return {
@@ -133,15 +150,17 @@ export async function publishProfile(profile, walletKey, address) {
  * Returns the Arweave Transaction ID and ar:// URI.
  *
  * Expects an already cropped + compressed image (see ImageCropper / imageCompression.js).
+ * For items under 100kbs, uses free ANS-104 bundler (JWK) or Wander dispatch (browser wallet).
+ * For items over 100kbs (when allowOversize is true), signs a paid base-layer L1 transaction.
  *
- * @param {File|Blob} file - Compressed image blob (typically image/webp)
+ * @param {File|Blob} file - Image blob
  * @param {object|null} walletKey - User's JWK keyfile (null if browser wallet)
  * @param {object} [options]
  * @param {boolean} [options.allowOversize=false] - Skip the 100 KiB guard ("Upload Only" originals).
- *   Uploads above the free tier may be rejected by the bundler or require a funded wallet.
+ * @param {Function} [options.onStatus=null] - Status notification callback (e.g. for UI feedback)
  * @returns {Promise<{ txId: string, uri: string, url: string }>}
  */
-export async function uploadProfileMedia(file, walletKey, { allowOversize = false } = {}) {
+export async function uploadProfileMedia(file, walletKey, { allowOversize = false, onStatus = null } = {}) {
   if (!file) throw new Error('No file provided for upload.');
 
   // Free ANS-104 uploads are capped at 100 KiB; images are compressed upstream to ~98 KiB.
@@ -152,46 +171,105 @@ export async function uploadProfileMedia(file, walletKey, { allowOversize = fals
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   const mimeType = file.type || 'image/webp';
+  const isOverFreeLimit = file.size > MAX_MEDIA_BYTES;
 
   let txId = null;
 
   if (walletKey) {
-    // Ephemeral or direct ANS-104 bundler dispatch via up.arweave.net (free)
-    const signer = new ArweaveSigner(walletKey);
-    const dataItem = createData(buffer, signer, {
-      tags: [
-        { name: 'Content-Type', value: mimeType },
-        { name: 'App-Name', value: 'Arweave-Account' },
-        { name: 'Type', value: 'profile-media' },
-      ],
-    });
+    // -----------------------------------------------------------------
+    // 1. JWK / In-Memory Keypair Flow (Automatic signing)
+    // -----------------------------------------------------------------
+    if (!isOverFreeLimit) {
+      // Free ANS-104 bundler dispatch via up.arweave.net
+      onStatus?.('Signing bundled upload...');
+      const signer = new ArweaveSigner(walletKey);
+      const dataItem = createData(buffer, signer, {
+        tags: [
+          { name: 'Content-Type', value: mimeType },
+          { name: 'App-Name', value: 'Arweave-Account' },
+          { name: 'Type', value: 'profile-media' },
+        ],
+      });
 
-    await dataItem.sign(signer);
+      await dataItem.sign(signer);
 
-    const response = await fetch('https://up.arweave.net/tx', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        Accept: 'application/json',
-      },
-      body: dataItem.getRaw(),
-    });
+      onStatus?.('Dispatching to bundler...');
+      const response = await fetch('https://up.arweave.net/tx', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          Accept: 'application/json',
+        },
+        body: dataItem.getRaw(),
+      });
 
-    if (response.status >= 200 && response.status < 300) {
-      txId = dataItem.id;
+      if (response.status >= 200 && response.status < 300) {
+        txId = dataItem.id;
+      } else {
+        throw new Error(`Media upload failed with status ${response.status}`);
+      }
     } else {
-      throw new Error(`Media upload failed with status ${response.status}`);
+      // Oversize image with JWK: Paid Arweave L1 transaction
+      onStatus?.('Creating L1 transaction on Arweave...');
+      const arweave = Arweave.init(ARWEAVE_CONFIG.gateway);
+      const tx = await arweave.createTransaction({ data: buffer }, walletKey);
+      tx.addTag('Content-Type', mimeType);
+      tx.addTag('App-Name', 'Arweave-Account');
+      tx.addTag('Type', 'profile-media');
+
+      onStatus?.('Signing L1 transaction...');
+      await arweave.transactions.sign(tx, walletKey);
+
+      onStatus?.('Uploading to Arweave gateway...');
+      const uploader = await arweave.transactions.getUploader(tx);
+      while (!uploader.isComplete) {
+        await uploader.uploadChunk();
+      }
+      txId = tx.id;
     }
   } else if (typeof window !== 'undefined' && window.arweaveWallet) {
-    // Browser wallet dispatch
+    // -----------------------------------------------------------------
+    // 2. Browser Extension Wallet Flow (Wander)
+    // -----------------------------------------------------------------
     const arweave = Arweave.init(ARWEAVE_CONFIG.gateway);
     const tx = await arweave.createTransaction({ data: buffer });
     tx.addTag('Content-Type', mimeType);
     tx.addTag('App-Name', 'Arweave-Account');
     tx.addTag('Type', 'profile-media');
 
-    const result = await window.arweaveWallet.dispatch(tx);
-    txId = result.id;
+    if (!isOverFreeLimit) {
+      // Under 100kbs: Free bundled dispatch
+      onStatus?.('Awaiting signature in Wander...');
+      try {
+        const result = await window.arweaveWallet.dispatch(tx);
+        txId = result.id;
+      } catch (err) {
+        const msg = String(err?.message || err || '').toLowerCase();
+        if (msg.includes('user') || msg.includes('cancel') || msg.includes('reject') || msg.includes('denied')) {
+          throw new Error('Transaction was cancelled in your browser wallet.');
+        }
+        throw err;
+      }
+    } else {
+      // Over 100kbs: Paid L1 base-layer transaction requiring user signature in Wander
+      onStatus?.('Awaiting signature in Wander for paid upload...');
+      try {
+        await arweave.transactions.sign(tx);
+      } catch (err) {
+        const msg = String(err?.message || err || '').toLowerCase();
+        if (msg.includes('user') || msg.includes('cancel') || msg.includes('reject') || msg.includes('denied')) {
+          throw new Error('Transaction was cancelled in your browser wallet.');
+        }
+        throw err;
+      }
+
+      onStatus?.('Uploading chunks to Arweave gateway...');
+      const uploader = await arweave.transactions.getUploader(tx);
+      while (!uploader.isComplete) {
+        await uploader.uploadChunk();
+      }
+      txId = tx.id;
+    }
   } else {
     throw new Error('No wallet available to sign media upload.');
   }

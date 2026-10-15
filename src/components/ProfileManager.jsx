@@ -7,7 +7,7 @@ import {
   DEFAULT_AVATAR,
   DEFAULT_BANNER
 } from '../utils/profile';
-import Data from '../../arweave-account/src/data';
+import Data from '../../vendor/arweave-account/src/data';
 import ImageCropper from './ImageCropper';
 
 export default function ProfileManager({
@@ -51,6 +51,7 @@ export default function ProfileManager({
   const [publishSuccess, setPublishSuccess] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [uploadingTarget, setUploadingTarget] = useState(null); // 'avatar' | 'banner' | null
+  const [mediaUploadStatus, setMediaUploadStatus] = useState('');
   const [cropRequest, setCropRequest] = useState(null); // { file: File, target: 'avatar' | 'banner' } | null
 
   // Copy status
@@ -132,6 +133,7 @@ export default function ProfileManager({
     if (!target) return;
 
     setUploadingTarget(target);
+    setMediaUploadStatus(!walletKey ? 'Awaiting signature in Wander...' : 'Preparing upload...');
     setErrorMessage('');
 
     try {
@@ -141,6 +143,7 @@ export default function ProfileManager({
       );
       const result = await uploadProfileMedia(compressed.blob, walletKey, {
         allowOversize: Boolean(compressed.original),
+        onStatus: (status) => setMediaUploadStatus(status),
       });
       console.log(`✅ ${target} uploaded successfully:`, result);
 
@@ -153,6 +156,7 @@ export default function ProfileManager({
       setErrorMessage(err.message || `Failed to upload ${target} image.`);
     } finally {
       setUploadingTarget(null);
+      setMediaUploadStatus('');
     }
   };
 
@@ -195,11 +199,16 @@ export default function ProfileManager({
     }
 
     setIsPublishing(true);
-    setPublishStep('Preparing Arweave-Account Protocol transaction...');
+    setPublishStep(
+      !walletKey
+        ? 'Awaiting signature in Wander...'
+        : 'Preparing Arweave-Account Protocol transaction...'
+    );
 
     try {
-      setPublishStep('Saving');
-      const res = await publishProfile(formData, walletKey, walletAddress);
+      const res = await publishProfile(formData, walletKey, walletAddress, {
+        onStatus: (step) => setPublishStep(step),
+      });
 
       setPublishStep('Hydrating cache...');
       setPublishSuccess(res);
@@ -330,6 +339,26 @@ export default function ProfileManager({
           </button>
         )}
       </div>
+
+      {/* Uploading / Awaiting Wander Signature Banner */}
+      {uploadingTarget && (
+        <div className="profile-alert profile-alert-info" style={{ background: 'rgba(56, 189, 248, 0.1)', borderColor: 'rgba(56, 189, 248, 0.3)', color: '#38bdf8' }}>
+          <i className="icon-spinner-double animate-spin"></i>
+          <span>
+            {mediaUploadStatus || `Processing ${uploadingTarget} upload...`}
+          </span>
+        </div>
+      )}
+
+      {/* Publishing with Wander / Awaiting Signature Banner */}
+      {isPublishing && !walletKey && (
+        <div className="profile-alert profile-alert-info" style={{ background: 'rgba(56, 189, 248, 0.1)', borderColor: 'rgba(56, 189, 248, 0.3)', color: '#38bdf8' }}>
+          <i className="icon-spinner-double animate-spin"></i>
+          <span>
+            {publishStep || 'Awaiting signature in Wander...'}
+          </span>
+        </div>
+      )}
 
       {/* Global Notification Banner */}
       {errorMessage && (

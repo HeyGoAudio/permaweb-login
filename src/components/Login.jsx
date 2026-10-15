@@ -110,7 +110,7 @@ export default function Login({ onBack, onLoginSuccess, walletAddress, initialSt
     setError('');
     if (typeof window !== 'undefined' && window.arweaveWallet) {
       try {
-        await window.arweaveWallet.connect(['ACCESS_ADDRESS', 'SIGN_TRANSACTION']);
+        await window.arweaveWallet.connect(['ACCESS_ADDRESS', 'SIGN_TRANSACTION', 'DISPATCH']);
         const address = await window.arweaveWallet.getActiveAddress();
         if (onLoginSuccess) {
           onLoginSuccess(null, address);
